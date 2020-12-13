@@ -17,15 +17,51 @@ using json = nlohmann::json;
 #include "PicoSHA2-master/picosha2.h"
 //needed files at https://github.com/okdshin/PicoSHA2
 
-
-
 #define CURL_STATICLIB
-
-
 
 using namespace std;
 
 const char* userAgent = "curl/7.55.1";
+
+/*
+engineDetails
+Has five string data members for the four different values that the MetaDefender scan reports for each engine, along with the engine name
+Also has the printDetails function for displaying the values in the desired format
+*/
+class engineDetails
+{
+    private:
+        string engine;
+        string threat_found;
+        string scan_time;
+        string scan_result_i;
+        string def_time;
+    public:
+        engineDetails(string engineParameter, string threat_foundParameter, string scan_timeParameter, string scan_result_iParameter, string def_timeParameter)
+        {
+            engine = engineParameter;
+            if (threat_foundParameter == "\"\"")
+                threat_found = "Clean";
+            else
+                threat_found = threat_foundParameter;
+            scan_time = scan_timeParameter;
+            scan_result_i = scan_result_iParameter;
+            def_time = def_timeParameter;
+        }
+
+        /*
+        printDetails
+        precondition: the engineDetails object has been initialized
+        postcondition: print the data members on their own console output lines in the order of: engine, threat_found, scan_result_i, def_time. Also include a note indicating which data member is which.
+        */
+        void printDetails()
+        {
+            cout << "engine: " << engine << endl;
+            cout << "threat_found: " << threat_found << endl;
+            cout << "scan_result: " << scan_result_i << endl;
+            cout << "def_time: " << def_time << endl;
+        }
+};
 
 /*
 writeCallback
@@ -229,6 +265,7 @@ int main(int argc, char* argv[])
    
     //Ask user for a valid API Key. An exception will result and the user will be asked for a valid key again if an invalid key is entered.
     bool sentinel;
+    int i = 0;
     do
     {
         cout << "Enter a valid API Key: ";
@@ -241,9 +278,11 @@ int main(int argc, char* argv[])
         catch (const exception& e)
         {
             cout << "An exception occurred: " << e.what() << endl;
+            cin.clear();
+            cin.ignore(1000, '\n');
             sentinel = true;
         }
-    }while (sentinel);
+    } while (sentinel);
 
     //use picosha2 to hash TestDatFile.dat and store the result in hex_str
     std::ifstream f("TestDatFile.dat", std::ios::binary);
@@ -251,7 +290,7 @@ int main(int argc, char* argv[])
     picosha2::hash256(f, s.begin(), s.end());
     std::string hex_str = picosha2::bytes_to_hex_string(s.begin(), s.end());
     
-    //perform a hash lookup with the API and the hash value in hex_str, putting the results into s1 and closing the program if an exception occurs in the process
+    //perform a hash lookup with the API and the hash value in hex_str, putting the results into the string s1 and closing the program if an exception occurs in the process
     string s1;
     try {
         s1 = hashLookup(hex_str, apiKey);
@@ -259,7 +298,7 @@ int main(int argc, char* argv[])
     catch (const exception& e)
     {
         cout << "An exception occurred: " << e.what() << endl;
-        return 1;
+        return -1;
     }
 
     //if s1 contains an error, the hash value was not found in the system and the file should be uploaded
@@ -293,58 +332,64 @@ int main(int argc, char* argv[])
             return 1;
         }
     }
-
-    //find where "scan_details" begin in s1 and enter the contents after that point into the string "reduced"
-    int detailsStart = s1.find("scan_details");
-    detailsStart += 15;
-    string reduced = s1.substr(detailsStart);
-
-    /*cout << s1 << endl << endl;
-    auto j = json::parse(reduced);*/
-    //JSON would be used to parse the results, but the format of the results lacks the spaces needed for it to parse correctly so string parsing and analysis is used instead
-
-
-    //iterate through each "scan_result" for every engine
-    while (reduced.find("scan_result") != -1)
+    
+    //Adds spaces to s1 between colons, commas, and brackets so it is read more easily by the JSON
+    for (int i = 0; i < s1.size(); i++)
     {
-        //find and print the next engine value
-        int engIndex = reduced.find("\"") + 1;
-        string engine = "";
-        while (reduced[engIndex] != '\"')
+        if (s1[i] == ':')
         {
-            engine += reduced[engIndex];
+            i++;
+            s1.insert(i, " ");
+        }
+        if (s1[i] == ',')
+        {
+            i++;
+            s1.insert(i, " ");
+        }
+        if (s1[i] == '{')
+        {
+            i++;
+            s1.insert(i, " ");
+        }
+        if (s1[i] == '}')
+        {
+            s1.insert(i, " ");
+            i++;
+        }
+    }
+
+    //find where "scan_details" begin in s1 and replace s1 with the contents after that point 
+    int detailsStart = s1.find("scan_details");
+    detailsStart += 16;
+    s1 = s1.substr(detailsStart);
+
+    //while loop to iterate through the results of each engine
+    while (s1.find("scan_result") != -1)
+    {
+        //find the engine and save its name to the string 'engine'
+        int engIndex = s1.find("\"") + 1;
+        string engine = "";
+        while (s1[engIndex] != '\"')
+        {
+            engine += s1[engIndex];
             engIndex++;
         }
-        int openBracket = reduced.find("{");
-        int lengthBracket = reduced.find("}") - openBracket + 1;
-        cout << "engine: " << engine << endl;
-        string engDetails = reduced.substr(openBracket, lengthBracket);
 
-        //find and print the next threat_found value
-        string threatFound;
-        int threatStart = engDetails.find("threat_found") + 14;
-        int threatLength = engDetails.find(",\"scan_time") - threatStart;
-        threatFound = engDetails.substr(threatStart, threatLength);
-        if (threatFound == "\"\"")
-            threatFound = "Clean";
-        cout << "threat_found: " << threatFound << endl;
+        //declare a new string, s2, that contains the scan results of one engine
+        int openBracket = s1.find("{");
+        int lengthBracket = s1.find("}") - openBracket + 1;
+        string s2 = s1.substr(openBracket, lengthBracket);
 
-        //find and print the next scan_result value
-        string scanResult;
-        int resultStart = engDetails.find("scan_result") + 15;
-        int resultLength = engDetails.find(",\"def_time") - resultStart;
-        scanResult = engDetails.substr(resultStart, resultLength);
-        cout << "scan_result: " << scanResult << endl;
+        //use json to parse the scan results in s2
+        auto j = json::parse(s2);
 
-        //find and print the next def_time value
-        string defTime;
-        int timeStart = engDetails.find("def_time") + 11;
-        int timeLength = engDetails.find("\"}") - timeStart;
-        defTime = engDetails.substr(timeStart, timeLength);
-        cout << "def_time: " << defTime << endl;
-
-        //remove the last set of scan details from "reduced"
-        reduced = reduced.substr(reduced.find("}") + 2, reduced.size() - engDetails.size());
+        //declare an engineDetails object with the engine name and the parsed values as the constructor parameter
+        engineDetails eD(engine, to_string(j.at("threat_found")), to_string(j.at("scan_time")), to_string(j.at("scan_result_i")), to_string(j.at("def_time")));
+        
+        //print the results with the printDetails method of the engineDetails class
+        eD.printDetails();
+        
+        s1 = s1.substr(s1.find("}") + 2, s1.size() - s2.size());
     }
 
     return 0;
