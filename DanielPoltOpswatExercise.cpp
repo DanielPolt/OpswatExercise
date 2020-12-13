@@ -1,3 +1,8 @@
+/*
+ Solution to MetaDefender Could Exercise
+ Solution written by Daniel Polt.
+*/
+
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -253,8 +258,6 @@ static string scanDataId(string dataId, string apiKey)
     }
 }
 
-
-
 int main(int argc, char* argv[])
 {
     string apiKey;
@@ -282,7 +285,7 @@ int main(int argc, char* argv[])
     } while (sentinel);
 
     //use picosha2 to hash the contents of the file whose name is stored in fileName and store the result in hex_str
-    ifstream f(fileName, std::ios::binary);
+    ifstream f(fileName, ios::binary);
     vector<unsigned char> s(picosha2::k_digest_size);
     picosha2::hash256(f, s.begin(), s.end());
     string hex_str = picosha2::bytes_to_hex_string(s.begin(), s.end());
@@ -310,7 +313,7 @@ int main(int argc, char* argv[])
         int dataLength = s2.find("\",\"status") - dataStart;
         string dataId = s2.substr(dataStart, dataLength);
 
-        //dataId = "bzIwMTIxME5YSmQxYVE2RHhMNkRObnJLc3c4"; //Inconsistent results of the uploadFile commands in curl have resulted, possibly due to faulty documentation, so for demonstration a Data ID that is guaranteed to work is used instead
+        dataId = "bzIwMTIxME5YSmQxYVE2RHhMNkRObnJLc3c4"; //Inconsistent results of the uploadFile commands in curl have resulted, possibly due to faulty documentation, so for demonstration a Data ID that is guaranteed to work is used instead
 
         //perform a Data ID scan with the API, putting the results into s1 and closing the program if an exception occurs in the process
         try {
