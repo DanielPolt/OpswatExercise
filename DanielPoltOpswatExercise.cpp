@@ -1,10 +1,11 @@
 #include <iostream>
+#include <fstream>
 #include <sstream>
 #include <cctype>
 #include <string>
-#include<cstdio>
-#include<cstring>
-#include<iostream>
+#include <cstdio>
+#include <cstring>
+#include <iostream>
 #include <vector>
 #include <curl\curl.h>
 
@@ -22,6 +23,9 @@ using json = nlohmann::json;
 using namespace std;
 
 const char* userAgent = "curl/7.55.1";
+
+//the name of the file used for the program
+string fileName = "TestDatFile.dat";
 
 /*
 engineDetails
@@ -158,23 +162,16 @@ static string hashLookup(string hash, string apiKey)
     long http_code = 0;
 
     curl_easy_getinfo(hnd, CURLINFO_RESPONSE_CODE, &http_code);
-    if (http_code >= 400)
-    {
-        throw exception("HTTP Request Failed");
-    }
-    else
-    {
-        curl_easy_cleanup(hnd);
-        hnd = NULL;
-        curl_slist_free_all(slist1);
-        slist1 = NULL;
-        return readBuffer;
-    }
+    curl_easy_cleanup(hnd);
+    hnd = NULL;
+    curl_slist_free_all(slist1);
+    slist1 = NULL;
+    return readBuffer;
 }
 
 /*
 uploadFile
-precondition: a valid API Key is entered and a file named TestDatFile.dat is within the local directory and has not been cached already
+precondition: a valid API Key is entered and a file with the name stored in fileName is within the local directory and has not been cached already
 postcondition: uploads the file to the MetaDefender Cloud API and returns a string of information regarding it, most notably a Data ID value
 */
 static string uploadFile(string apiKey)
@@ -191,7 +188,7 @@ static string uploadFile(string apiKey)
     //use libcurl's "easy" interface to use the API and generate results
     hnd = curl_easy_init();
     curlEasySetup(hnd, slist1, readBuffer);
-    curl_easy_setopt(hnd, CURLOPT_POSTFIELDS, "TestDatFile.dat");
+    curl_easy_setopt(hnd, CURLOPT_POSTFIELDS, fileName);
     curl_easy_setopt(hnd, CURLOPT_POSTFIELDSIZE_LARGE, (curl_off_t)15);
     curl_easy_setopt(hnd, CURLOPT_URL, "https://api.metadefender.com/v4/file");
     curl_easy_setopt(hnd, CURLOPT_CUSTOMREQUEST, "POST");
@@ -284,25 +281,18 @@ int main(int argc, char* argv[])
         }
     } while (sentinel);
 
-    //use picosha2 to hash TestDatFile.dat and store the result in hex_str
-    std::ifstream f("TestDatFile.dat", std::ios::binary);
-    std::vector<unsigned char> s(picosha2::k_digest_size);
+    //use picosha2 to hash the contents of the file whose name is stored in fileName and store the result in hex_str
+    ifstream f(fileName, std::ios::binary);
+    vector<unsigned char> s(picosha2::k_digest_size);
     picosha2::hash256(f, s.begin(), s.end());
-    std::string hex_str = picosha2::bytes_to_hex_string(s.begin(), s.end());
-    
-    //perform a hash lookup with the API and the hash value in hex_str, putting the results into the string s1 and closing the program if an exception occurs in the process
-    string s1;
-    try {
-        s1 = hashLookup(hex_str, apiKey);
-    }
-    catch (const exception& e)
-    {
-        cout << "An exception occurred: " << e.what() << endl;
-        return -1;
-    }
+    string hex_str = picosha2::bytes_to_hex_string(s.begin(), s.end());
 
+    //perform a hash lookup with the API and the hash value in hex_str, putting the results into the string s1
+    string s1;
+    s1 = hashLookup(hex_str, apiKey);
+    
     //if s1 contains an error, the hash value was not found in the system and the file should be uploaded
-    if (s1 == "{\"error\":{\"code\":400064,\"messages\":[\"The hash value is not valid\"]}}")
+    if (s1 == "{\"error\":{\"code\":400064,\"messages\":[\"The hash value is not valid\"]}}" || s1 == "{\"error\":{\"code\":404003,\"messages\":[\"The hash was not found\"]}}")
     {
         //perform a file upload with the API and the file, putting the results into s2 and closing the program if an exception occurs in the process
         string s2;
@@ -320,7 +310,7 @@ int main(int argc, char* argv[])
         int dataLength = s2.find("\",\"status") - dataStart;
         string dataId = s2.substr(dataStart, dataLength);
 
-        dataId = "bzIwMTIxME5YSmQxYVE2RHhMNkRObnJLc3c4"; //Inconsistent results of the uploadFile commands in curl have resulted, possibly due to faulty documentation, so for demonstration a verified Data ID is used instead
+        //dataId = "bzIwMTIxME5YSmQxYVE2RHhMNkRObnJLc3c4"; //Inconsistent results of the uploadFile commands in curl have resulted, possibly due to faulty documentation, so for demonstration a Data ID that is guaranteed to work is used instead
 
         //perform a Data ID scan with the API, putting the results into s1 and closing the program if an exception occurs in the process
         try {
@@ -393,5 +383,4 @@ int main(int argc, char* argv[])
     }
 
     return 0;
-    
 }
