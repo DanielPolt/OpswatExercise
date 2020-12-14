@@ -325,6 +325,15 @@ int main(int argc, char* argv[])
             return 1;
         }
     }
+
+    //Print the name of the file to the console
+    cout << "filename: " + fileName << endl;
+
+    //Find and print the "scan_all_result_a" value and print it to the console as "overall_status"
+    int overallStart = s1.find("scan_all_result_a") + 20;
+    int overallLength = s1.find("\"},\"file_info") - overallStart;
+    string dataId = s1.substr(overallStart, overallLength);
+    cout << "overall_status: " << dataId << endl;
     
     //Adds spaces to s1 between colons, commas, and brackets so it is read more easily by the JSON
     for (int i = 0; i < s1.size(); i++)
